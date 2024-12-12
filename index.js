@@ -246,6 +246,7 @@ async function run() {
     const db = client.db("job_seeker");
     const userCollection = db.collection("user");
     const jobCollection = db.collection("job");
+    const jobApplicationCollection = db.collection("jobApplications");
 
 
 
@@ -255,21 +256,6 @@ async function run() {
 
 
 
-    // app.post('/jobs', async (req, res) => {
-    //   try {
-        
-    //     const result = await jobCollection.insertMany(jobsData);
-    //     if (result.acknowledged) {
-    //       res.status(200).json({ success: true, message: 'result added successfully' });
-    //       console.log(result);
-    //     } else {
-    //       res.status(500).json({ success: false, message: 'Failed to add result' });
-    //     }
-    //     }catch (err) {
-    //     console.error('Error inserting result:', err);
-    //     res.status(500).json({ message: 'Failed to add result', error: err.message });
-    //   }
-    // });
 
 
     app.get("/jobs", async (req, res)=>{
@@ -281,7 +267,7 @@ async function run() {
     }
     })
 
-    
+
 
    app.get('/jobDetails/:id', async (req, res) => {
       const id = req.params.id;  
@@ -298,6 +284,27 @@ async function run() {
     
     
   
+
+    // job application api
+
+    app.post('/job-applications', async (req, res) => {
+      try {
+        
+        const data = req.body;
+        const result = await jobApplicationCollection.insertOne(data);
+
+        if (result.acknowledged) {
+          res.status(200).json({ success: true, message: 'result added successfully' });
+          console.log(result);
+        } else {
+          res.status(500).json({ success: false, message: 'Failed to add result' });
+        }
+        }catch (err) {
+        console.error('Error inserting result:', err);
+        res.status(500).json({ message: 'Failed to add result', error: err.message });
+      }
+    });
+
 
 
 
