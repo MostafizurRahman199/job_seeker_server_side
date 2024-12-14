@@ -116,6 +116,8 @@ async function run() {
       }
     });
 
+
+
     app.get("/allJob", async (req, res) => {
       try {
         const result = await jobCollection.find().toArray();
@@ -125,14 +127,7 @@ async function run() {
       }
     });
 
-    // app.post("/jobs", async (req, res)=>{
-    // try {
-    //   const result = await jobCollection.insertMany(jobsData);
-    //   res.json(result);
-    // } catch (error) {
-    //   res.json(error);
-    // }
-    // })
+
 
     app.get("/jobDetails/:id", async (req, res) => {
       const id = req.params.id;
@@ -155,12 +150,29 @@ async function run() {
     app.post("/job-applications", async (req, res) => {
       try {
         const data = req.body;
+        
+        const jobID = data.jobId;
         const result = await jobApplicationCollection.insertOne(data);
 
         if (result.acknowledged) {
-          res
-            .status(200)
-            .json({ success: true, message: "result added successfully" });
+
+           //__________________ start application count
+
+          const query = { _id : new ObjectId(jobID)}
+          const job = await jobCollection.findOne(query);
+          let count = 0;
+          if(job.applicationCount){
+            count = job.applicationCount + 1;
+          }else{
+            count = 1;
+          }
+          const doc = { $set: { applicationCount: count } };
+          const result2 = await jobCollection.updateOne(query,doc );
+
+          // __________________End application Count
+
+
+          res.status(200).json({ success: true, message: "result added successfully" });
           console.log(result);
         } else {
           res
@@ -174,6 +186,10 @@ async function run() {
           .json({ message: "Failed to add result", error: err.message });
       }
     });
+
+
+
+
 
     app.get("/applied-job/:email", async (req, res) => {
       const email = req.params.email;
@@ -205,34 +221,81 @@ async function run() {
       }
     });
 
+
+
+
     app.delete("/applied-job/:id", async (req, res) => {
-      const id = req.params.id;
-
-      const query = { _id: new ObjectId(id) };
+      const id = req.params.id;            // ID for the job application
+      const jobId = req.query.jobId;       // Job ID from query parameters
+    
+      console.log("JobId:", jobId, "Application Id:", id);
+    
+      const query = { _id: new ObjectId(id) };    // Query for the job application
+      const query2 = { _id: new ObjectId(jobId) }; // Query for the job
+    
       try {
-        const result = await jobApplicationCollection.deleteOne(query);
-
-        if (!result) {
-          return res.status(404).json({ message: "result not found" });
+        // Check if the application exists in the collection
+        const application = await jobApplicationCollection.findOne(query);
+        
+        if (!application) {
+          // If no application is found, return a 404 status
+          return res.status(404).json({ message: "Job application not found" });
         }
-        res.status(200).json(result);
+    
+        // Delete the job application from the jobApplicationCollection
+        const result = await jobApplicationCollection.deleteOne(query);
+        
+        if (!result.deletedCount) {
+          return res.status(404).json({ message: "Failed to delete job application" });
+        }
+    
+        // Find the job to update the application count
+        const job = await jobCollection.findOne(query2);
+        
+        if (!job) {
+          return res.status(404).json({ message: "Job not found" });
+        }
+    
+        // Decrement application count if the job has it, but don't go below 0
+        let count = job?.applicationCount || 0;
+    
+        if (count > 0) {
+          count -= 1; // Decrement the application count
+        }
+    
+        const updateDoc = { $set: { applicationCount: count } };
+    
+        // Update the job's application count
+        const result2 = await jobCollection.updateOne(query2, updateDoc);
+    
+        if (result2.modifiedCount === 0) {
+          return res.status(500).json({ message: "Error updating application count" });
+        }
+    
+        // Return a successful response
+        res.status(200).json({ message: "Job application deleted and count updated", result });
       } catch (error) {
-        res.status(500).json({ message: "Error fetching result details" });
+        console.error("Error:", error);
+        res.status(500).json({ message: "Error processing request" });
       }
     });
+    
+
+
 
     // add new job
 
     app.post("/addJob", async (req, res) => {
       try {
         const data = req.body;
+        // console.log(data);
         const result = await jobCollection.insertOne(data);
 
         if (result.acknowledged) {
           res
             .status(200)
             .json({ success: true, message: "result added successfully" });
-          console.log(result);
+          // console.log(result);
         } else {
           res
             .status(500)
@@ -257,14 +320,6 @@ async function run() {
 
 
 
-// app.get("/allJob", async (req, res) => {
-//   try {
-//     const result = await jobCollection.find().toArray();
-//     res.json(result);
-//   } catch (error) {
-//     res.json(error);
-//   }
-// });
 
 
 
