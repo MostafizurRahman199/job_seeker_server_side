@@ -3,6 +3,8 @@ dotenv.config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
+var jwt = require('jsonwebtoken');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,7 +31,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     // await client.db("admin").command({ ping: 1 });
     // Access the database and collections
@@ -38,8 +40,25 @@ async function run() {
     const userCollection = db.collection("user");
     const jobCollection = db.collection("job");
     const jobApplicationCollection = db.collection("jobApplications");
+    const saveJobCollection = db.collection("savedJob");
 
     console.log("Successfully connected to MongoDB!");
+
+
+
+    // auth related APIS
+
+    app.post("/jwt", async (req, res) => {
+      const email = req.body.email; // Extract the email from the request body
+      const payload = { email }; // Create a payload object
+      const token = jwt.sign(payload, "secret", { expiresIn: '1h' }); // Pass the payload object
+    
+      res.send({ token }); // Send the token back to the client
+    });
+
+
+
+
 
 
 
@@ -145,6 +164,60 @@ async function run() {
 
 
 
+
+    app.patch("/jobApplication-view/:id", async (req, res) => {
+      const id = req.params.id;
+      const statusData = req.body.statusData.status;
+      console.log(id, statusData)
+    
+      try {
+   
+        const result = await jobApplicationCollection.updateOne(
+          { _id: new ObjectId(id) }, 
+          {
+            $set: { status: statusData }
+          },
+          { upsert: true } 
+        );
+    
+
+        if (result.matchedCount === 0 && result.upsertedCount === 0) {
+          return res.status(404).json({ message: "Job application not found, and no new document inserted." });
+        }
+    
+        // console.log(result);
+        res.status(200).json(result);
+        
+
+      } catch (error) {
+        res.status(500).json({ message: "Error updating job application status", error: error.message });
+      }
+    });
+    
+
+
+
+    app.get("/viewJobApplication/:jobId", async (req, res) => {
+
+      const id = req.params.jobId;
+      // console.log(id);
+      const query = {jobId : id};
+
+      try {
+        const result = await jobApplicationCollection.find(query).toArray();
+        // console.log(result);
+        if (!result) {
+          return res.status(404).json({ message: "result not found" });
+        }
+        res.status(200).json(result);
+      } catch (error) {
+        res.status(500).json({ message: "Error fetching result details" });
+      }
+    });
+
+
+
+
     // job application api
 
     app.post("/job-applications", async (req, res) => {
@@ -173,7 +246,7 @@ async function run() {
 
 
           res.status(200).json({ success: true, message: "result added successfully" });
-          console.log(result);
+          // console.log(result);
         } else {
           res
             .status(500)
@@ -193,7 +266,7 @@ async function run() {
 
     app.get("/applied-job/:email", async (req, res) => {
       const email = req.params.email;
-      console.log(email);
+      // console.log(email);
       const query = { applicantEmail: email };
       try {
         const result = await jobApplicationCollection
@@ -228,7 +301,7 @@ async function run() {
       const id = req.params.id;            // ID for the job application
       const jobId = req.query.jobId;       // Job ID from query parameters
     
-      console.log("JobId:", jobId, "Application Id:", id);
+      // console.log("JobId:", jobId, "Application Id:", id);
     
       const query = { _id: new ObjectId(id) };    // Query for the job application
       const query2 = { _id: new ObjectId(jobId) }; // Query for the job
@@ -308,6 +381,56 @@ async function run() {
           .json({ message: "Failed to add result", error: err.message });
       }
     });
+
+
+
+    // _______________________saved job start
+
+    app.post("/saveJob", async (req, res) => {
+      try {
+        const data = req.body;
+        // console.log(data);
+        const result = await saveJobCollection.insertOne(data);
+
+        if (result.acknowledged) {
+          res
+            .status(200)
+            .json({ success: true, message: "result added successfully" });
+          // console.log(result);
+        } else {
+          res
+            .status(500)
+            .json({ success: false, message: "Failed to add result" });
+        }
+      } catch (err) {
+        console.error("Error inserting result:", err);
+        res
+          .status(500)
+          .json({ message: "Failed to add result", error: err.message });
+      }
+    });
+
+    
+    app.get("/saveJob/:email", async (req, res) => {
+      const email = req.params.email;
+      // console.log(email);
+      const query = { 
+        savedUserEmail: email };
+      try {
+        const result = await saveJobCollection
+          .find(query)
+          .toArray();
+
+       
+        res.status(200).json(result);
+      } catch (error) {
+        res.status(500).json({ message: "Error fetching result details" });
+      }
+    });
+
+
+
+
   } catch (error) {
     console.error("Error connecting to MongoDB", error);
   } finally {
