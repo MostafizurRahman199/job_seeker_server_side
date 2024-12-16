@@ -3,15 +3,72 @@ dotenv.config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const cors = require("cors");
+
+// ___________step 1___for jwt and cookies storage
+
 var jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+
+
 // Middleware
-app.use(cors());
+// ___________step 2___for jwt and cookies storage
+app.use(cors(
+  {
+    origin: ["http://localhost:5173"],
+    credentials: true
+  }
+));
+
+
+
 app.use(express.json());
+
+// ___________step 3___for jwt and cookies storage
+app.use(cookieParser());
+
+
+// ________________________middle ware
+
+const logger = async( req, res, next)=>{
+  console.log("Inside the logger");
+
+  next();
+}
+
+
+
+// ___________step 5___for jwt and cookies storage
+
+const verifyToken = async (req, res, next)=>{
+  console.log("Inside verify token middleware");
+  const token = req?.cookies?.token;
+  // console.log(token);
+  if(!token){
+    return res.status(401).send({message : "Unauthorized Access"});
+  }
+
+
+  // verify the token
+  jwt.verify(token, process.env.JWT_SECRET, (error, decoded)=>{
+      if(error){
+        return res.status(401).send({message : "Unauthorized Access"});
+      }else{
+        // console.log("Okay");
+        req.user = decoded;
+        next();
+      }
+  })
+  
+}
+  
+  
+
+
 
 // Database connection
 
@@ -48,12 +105,20 @@ async function run() {
 
     // auth related APIS
 
+
+// ___________step 4___for jwt and cookies storage
+
     app.post("/jwt", async (req, res) => {
-      const email = req.body.email; // Extract the email from the request body
+      const email = req.body.email; 
       const payload = { email }; // Create a payload object
-      const token = jwt.sign(payload, "secret", { expiresIn: '1h' }); // Pass the payload object
+      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); 
     
-      res.send({ token }); // Send the token back to the client
+      res
+      .cookie("token", token, {
+        httpOnly: true,
+        secure:false, // at the time of production we will make it true
+      })
+      .send({ success: true}); 
     });
 
 
@@ -264,10 +329,20 @@ async function run() {
 
 
 
-    app.get("/applied-job/:email", async (req, res) => {
+    app.get("/applied-job/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
       // console.log(email);
+
       const query = { applicantEmail: email };
+      // console.log("Cookies : ", req.cookies);
+
+
+    // ___________step 6___for jwt and cookies storage
+
+      if(req.user.email !== email){
+        return res.status(403).json({ success: false, message: "forbidden access" });
+      }
+
       try {
         const result = await jobApplicationCollection
           .find({ applicantEmail: email })
