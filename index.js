@@ -19,7 +19,14 @@ const PORT = process.env.PORT || 5000;
 // ___________step 2___for jwt and cookies storage
 app.use(cors(
   {
-    origin: ["http://localhost:5173"],
+    origin: [
+      "http://localhost:4173",
+      "http://localhost:5173",
+      "https://job-seeker-d51b4.web.app",
+    
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+
     credentials: true
   }
 ));
@@ -47,7 +54,7 @@ const logger = async( req, res, next)=>{
 const verifyToken = async (req, res, next)=>{
   console.log("Inside verify token middleware");
   const token = req?.cookies?.token;
-  // console.log(token);
+  console.log(token);
   if(!token){
     return res.status(401).send({message : "Unauthorized Access"});
   }
@@ -60,8 +67,8 @@ const verifyToken = async (req, res, next)=>{
       }else{
         // console.log("Okay");
         req.user = decoded;
-        next();
       }
+      next();
   })
   
 }
@@ -111,18 +118,28 @@ async function run() {
     app.post("/jwt", async (req, res) => {
       const email = req.body.email; 
       const payload = { email }; // Create a payload object
-      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' }); 
+      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '5h' }); 
     
       res
       .cookie("token", token, {
         httpOnly: true,
-        secure:false, // at the time of production we will make it true
+        secure: true,
+        sameSite: "none",
+        // secure: process.env.NODE_ENV === "production",
+  
       })
       .send({ success: true}); 
     });
 
 
 
+    app.post("/logout", async(req, res)=>{
+       res.clearCookie("token",{
+        httpOnly : true,
+        // secure: process.env.NODE_ENV === "production",
+  
+       }).send({success: true});
+    })
 
 
 
@@ -330,7 +347,7 @@ async function run() {
 
 
     app.get("/applied-job/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
+      const email = req?.params?.email;
       // console.log(email);
 
       const query = { applicantEmail: email };
@@ -339,7 +356,7 @@ async function run() {
 
     // ___________step 6___for jwt and cookies storage
 
-      if(req.user.email !== email){
+      if(req?.user?.email !== email){
         return res.status(403).json({ success: false, message: "forbidden access" });
       }
 
